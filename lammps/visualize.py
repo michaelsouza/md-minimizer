@@ -1,9 +1,10 @@
 """
-Visualize LAMMPS trajectory from dump.springs.lammpstrj
+Visualize LAMMPS trajectory from dump.springs.lammpstrj using seaborn (2D)
 """
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import glob
 
 def read_lammps_dump(filename):
     """Read LAMMPS trajectory file"""
@@ -26,32 +27,33 @@ def read_lammps_dump(filename):
                 if not line or line.startswith('ITEM:'):
                     break
                 parts = line.split()
-                coords.append([float(parts[2]), float(parts[3]), float(parts[4])])
+                coords.append([float(parts[2]), float(parts[3])])  # Only x,y for 2D
                 
             frames.append(np.array(coords))
     return frames
 
-def visualize_frames(frames):
-    """Plot 3D visualization of trajectory"""
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
+def visualize_frames(frames, step_num):
+    """Plot 2D visualization of trajectory using seaborn"""
+    plt.figure(figsize=(10, 8))
     
-    # Plot first frame
-    frame = frames[0]
-    ax.scatter(frame[:,0], frame[:,1], frame[:,2], c='b', marker='o')
-    
-    # Plot last frame
+    # Plot points
     frame = frames[-1]
-    ax.scatter(frame[:,0], frame[:,1], frame[:,2], c='r', marker='o')
+    sns.scatterplot(x=frame[:,0], y=frame[:,1], color='red', s=100)
     
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title('LAMMPS Trajectory (Blue=Initial, Red=Final)')
-    plt.savefig('trajectory_plot.png')
-    print("Saved visualization to trajectory_plot.png")
+    # Simple line connections (for visualization purposes)
+    plt.plot(frame[:,0], frame[:,1], 'b-', linewidth=1)
+    
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title(f'LAMMPS Simulation - Step {step_num}')
+    plt.savefig(f"step_{step_num}.png")
+    plt.close()
 
 if __name__ == "__main__":
-    frames = read_lammps_dump("dump.springs.lammpstrj")
-    print(f"Read {len(frames)} frames")
-    visualize_frames(frames)
+    # Process all dump files from the loop
+    dump_files = sorted(glob.glob("dump.springs_loop.*.lammpstrj"))
+    
+    for i, dump_file in enumerate(dump_files):
+        frames = read_lammps_dump(dump_file)
+        visualize_frames(frames, i)
+        print(f"Visualized step {i} - saved to step_{i}.png")

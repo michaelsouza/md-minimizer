@@ -1,9 +1,11 @@
 system: |-
   - Ubuntu
+  - Conda (Python 3.12)
   - LAMMPS
 files:
   - "lammps/generate_data.py"
   - "lammps/in.springs"
+  - "lammps/in.springs_loop"
   - "lammps/visualize.py"
   - "README.md"
 prompts:

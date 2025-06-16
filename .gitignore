@@ -33,3 +33,6 @@
 
 # Python virtual environment
 .venv/*
+
+# LAMMPS dump files
+lammps/dump.*.lammpstrj
