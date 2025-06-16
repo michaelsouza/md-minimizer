@@ -41,3 +41,5 @@ lammps/log.lammps
 lammps/data.springs
 .vscode/git_diff.txt
 tree.txt
+lammps/frame_*.png
+lammps/simulation_movie.gif

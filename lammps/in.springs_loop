@@ -4,7 +4,7 @@
 # --------------------
 units           lj          # Use standard Lennard-Jones units
 dimension       2           # This is a 2D simulation
-boundary        p p p       # Periodic in all directions to allow large displacements
+boundary        p f p       # Periodic in X, Fixed (non-periodic) in Y
 atom_style      bond        # We have particles connected by bonds
 
 # 2. System Definition
@@ -20,15 +20,23 @@ bond_coeff      1 100.0 1.0   # For bond type 1: k=100.0, r0=1.0 (rest length)
 # -- Add random displacement to initial grid positions
 displace_atoms  all random 0.01 0.01 0.0 8675309
 
-# -- Define Groups
-region          bottom_plane block INF INF 0.0 0.1 INF INF   # Region for bottom bar
-region          top_plane    block INF INF 8.9 9.0 INF INF   # Region for top bar
-group           bottom       region bottom_plane              # Atoms in the bottom bar
-group           top          region top_plane                  # Atoms in the top bar
-group           fixed        union bottom top                  # Union of both bars
+# -- Define Groups Dynamically
+variable y_max equal bound(all,ymax)
+variable y_min equal bound(all,ymin)
 
-# -- Fix the bottom bar in place
-fix             1 bottom setforce 0.0 0.0 0.0  # Fix the bottom bar by zeroing its force
+# Pre-calculate region boundaries, as LAMMPS cannot do math inside the 'region' command
+variable y_bottom_hi equal ${y_min}+0.1
+variable y_top_lo equal ${y_max}-0.1
+
+# Define regions based on calculated atom bounds, using the pre-calculated variables
+region          bottom_plane block INF INF ${y_min} ${y_bottom_hi} INF INF
+region          top_plane    block INF INF ${y_top_lo} ${y_max} INF INF
+
+group           bottom       region bottom_plane
+group           top          region top_plane
+
+# -- Fix the bottom bar in place by tethering atoms to their positions with stiff springs.
+fix             1 bottom spring/self 1000.0
 
 # -- Initial Energy Minimization
 echo            both
@@ -43,16 +51,16 @@ print           "Starting quasi-static pulling simulation..."
 print           "Step,TotalEnergy" # CSV header for easy parsing
 
 # -- Loop and displacement variables
-variable D equal 9.0                # Initial distance between bars (Ny-1)*spacing
-variable pull_dist equal 0.1*${D}   # Displacement distance for each step (0.9)
-variable n_steps equal 10           # Total number of pulling steps
+variable D equal ${y_max}-${y_min} # Initial distance between bars, now calculated
+variable pull_dist equal 0.1*${D}     # Displacement distance for each step
+variable n_steps equal 10              # Total number of pulling steps
 
 # -- Define a variable for total energy for easier printing
 variable E equal etotal
 
-# -- The main loop starts here
-label           pull_loop
-variable        i loop ${n_steps}
+# -- The main loop starts here using an explicit label/jump structure for robustness.
+variable i equal 1          # Initialize loop counter
+label           pull_loop   # Define the start of the loop
 
     # Displace the top atom group
     displace_atoms  top move 0 ${pull_dist} 0 units box
@@ -66,9 +74,10 @@ variable        i loop ${n_steps}
     # Dump coordinates for visualization at each step
     dump            1 all custom 1 dump.springs_loop.${i}.lammpstrj id type x y z
     run             0
-    undump          1    
+    undump          1
 
-next            i
-jump            in.springs_loop pull_loop
+    # Increment the loop counter and jump back to the label if not finished
+    variable i equal ${i}+1
+    if "${i} <= ${n_steps}" then "jump SELF pull_loop"
 
 print           "Simulation loop finished."

@@ -4,10 +4,11 @@ system: |-
   - LAMMPS
 files:
   - "lammps/generate_data.py"
-  - "lammps/in.springs"
   - "lammps/in.springs_loop"
   - "lammps/data.springs"
   - "lammps/visualize_simulation.py"
+  - "lammps/visualize_mesh.py"
+  - "tree.txt"
   - "README.md"
 prompts:
   CodeChanges: "Do not copy the entire source code. Just give me the complete version of the modified members (functions, classes, ...) and explain where should I put them."
