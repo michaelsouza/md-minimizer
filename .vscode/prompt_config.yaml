@@ -6,7 +6,8 @@ files:
   - "lammps/generate_data.py"
   - "lammps/in.springs"
   - "lammps/in.springs_loop"
-  - "lammps/visualize.py"
+  - "lammps/data.springs"
+  - "lammps/visualize_simulation.py"
   - "README.md"
 prompts:
   CodeChanges: "Do not copy the entire source code. Just give me the complete version of the modified members (functions, classes, ...) and explain where should I put them."

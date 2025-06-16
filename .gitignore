@@ -36,3 +36,8 @@
 
 # LAMMPS dump files
 lammps/dump.*.lammpstrj
+lammps/step_*.png
+lammps/log.lammps
+lammps/data.springs
+.vscode/git_diff.txt
+tree.txt

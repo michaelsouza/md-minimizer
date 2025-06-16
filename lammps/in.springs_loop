@@ -66,10 +66,7 @@ variable        i loop ${n_steps}
     # Dump coordinates for visualization at each step
     dump            1 all custom 1 dump.springs_loop.${i}.lammpstrj id type x y z
     run             0
-    undump          1
-    
-    # Visualize this step
-    shell           python visualize.py
+    undump          1    
 
 next            i
 jump            in.springs_loop pull_loop
