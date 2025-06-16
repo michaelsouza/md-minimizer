@@ -3,6 +3,7 @@ generate_data.py
 
 This script generates a LAMMPS data file for a 9x10 spring network,
 ensuring the simulation box is large enough for a tensile test.
+It now assigns unique atom types to the top and bottom bars for robust grouping.
 """
 
 import numpy as np
@@ -18,32 +19,22 @@ def generate_lammps_data():
     buffer = 0.1  # A small buffer added to the box boundaries
 
     # --- Simulation Parameters (should match in.springs_loop) ---
-    # These are used to calculate the required simulation box size to prevent
-    # atoms from being lost during the tensile pull.
     pull_steps = 10
     displacement_per_step_factor = 0.1  # This is 0.1 * D
 
     # --- Calculations ---
-    # Calculate the initial dimensions of the atom grid
-    L = (Nx - 1) * spacing  # Initial width
-    D = (Ny - 1) * spacing  # Initial height (distance between top and bottom bars)
+    L = (Nx - 1) * spacing
+    D = (Ny - 1) * spacing
     N_particles = Nx * Ny
-
-    # To ensure atoms are not lost, the simulation box must be large enough
-    # from the start to accommodate the final, stretched state.
-    # 1. Calculate the total displacement applied during the simulation.
     total_displacement = pull_steps * (displacement_per_step_factor * D)
-
-    # 2. Calculate the final height of the top bar of atoms.
     final_y_height = D + total_displacement
 
-    # Generate atom positions on a 2D grid
     x = np.linspace(0, L, Nx)
     y = np.linspace(0, D, Ny)
     xv, yv = np.meshgrid(x, y)
     positions = np.stack([xv.flatten(), yv.flatten(), np.zeros(N_particles)]).T
 
-    # Generate bonds between nearest neighbors
+    # Generate bonds
     bonds = []
     # Horizontal bonds
     for i in range(Ny):
@@ -58,35 +49,43 @@ def generate_lammps_data():
             p2 = (i + 1) * Nx + j
             bonds.append((p1 + 1, p2 + 1))
 
-    # Write all data to the file
+    # --- Write all data to the file ---
     with open("data.springs", "w", encoding="utf-8") as f:
-        f.write("# LAMMPS data file for a 9x10 spring network\n\n")
+        f.write("# LAMMPS data file for a 9x10 spring network\n")
+        f.write("# Atom types: 1=mobile, 2=bottom_bar, 3=top_bar\n\n")
         f.write(f"{N_particles} atoms\n")
         f.write(f"{len(bonds)} bonds\n")
-        f.write("1 atom types\n")
+        f.write("3 atom types\n")  # <-- MODIFIED: Now 3 atom types
         f.write("1 bond types\n\n")
 
-        # Simulation box dimensions (now accommodates pulling)
-        # We set the box size to be large enough for the entire simulation run.
         f.write(f"{-buffer} {L + buffer} xlo xhi\n")
         f.write(f"{-buffer} {final_y_height + buffer} ylo yhi\n")
         f.write("-0.6 0.6 zlo zhi\n\n")
 
-        # Masses
+        # Masses for each atom type
         f.write("Masses\n\n")
-        f.write("1 1.0\n\n")
+        f.write("1 1.0\n")
+        f.write("2 1.0\n")  # <-- ADDED: Mass for bottom bar atoms
+        f.write("3 1.0\n\n")  # <-- ADDED: Mass for top bar atoms
 
         # Atoms section
         f.write("Atoms\n\n")
         for i in range(N_particles):
             atom_id = i + 1
             molecule_id = 1
-            atom_type = 1
+
+            # --- MODIFIED: Assign atom type based on row ---
+            if i < Nx:  # First row of atoms (y=0)
+                atom_type = 2  # bottom_bar
+            elif i >= N_particles - Nx:  # Last row of atoms
+                atom_type = 3  # top_bar
+            else:  # All other atoms in the middle
+                atom_type = 1  # mobile
+
             px, py, pz = positions[i]
-            # Format: atom-ID molecule-ID atom-type x y z
             f.write(f"{atom_id} {molecule_id} {atom_type} {px:.2f} {py:.2f} {pz:.2f}\n")
 
-        # Bonds section
+        # Bonds section (no changes here)
         f.write("\nBonds\n\n")
         for i, bond in enumerate(bonds):
             bond_id = i + 1
@@ -94,7 +93,7 @@ def generate_lammps_data():
             p1, p2 = bond
             f.write(f"{bond_id} {bond_type} {p1} {p2}\n")
 
-    print("'data.springs' file has been successfully generated.")
+    print("'data.springs' file with typed atoms has been successfully generated.")
 
 
 if __name__ == "__main__":
