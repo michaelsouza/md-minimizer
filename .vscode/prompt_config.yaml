@@ -8,6 +8,7 @@ files:
   - "lammps/data.springs"
   - "lammps/visualize_simulation.py"
   - "lammps/visualize_mesh.py"
+  - "lammps/log.lammps"
   - "tree.txt"
   - "README.md"
 prompts:

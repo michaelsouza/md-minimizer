@@ -9,12 +9,10 @@ The visualization style is matched to 'visualize_mesh.py' for consistency.
 """
 
 import glob
-import os
 from typing import Dict, List, Tuple
 
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
-import numpy as np
 
 
 def parse_data_for_viz(
@@ -145,7 +143,7 @@ def visualize_frame(
     ax.set_aspect("equal", adjustable="box")
 
     plt.tight_layout()
-    output_filename = f"frame_{step_num:03d}.png"
+    output_filename = f"output/frame_{step_num:03d}.png"
     plt.savefig(output_filename)
     plt.close()
     return output_filename
@@ -159,16 +157,18 @@ def create_movie(image_files: List[str], output_filename: str):
         image_files: A sorted list of filenames for the animation frames.
         output_filename: The name of the output movie file (e.g., 'movie.gif').
     """
-    with imageio.get_writer(output_filename, mode="I", duration=0.5, loop=0) as writer:
+    with imageio.get_writer(
+        f"output/{output_filename}", mode="I", duration=0.5, loop=0
+    ) as writer:
         for filename in image_files:
             image = imageio.imread(filename)
             writer.append_data(image)
-    print(f"\nMovie saved to '{output_filename}'")
+    print(f"\nMovie saved to 'output/{output_filename}'")
 
 
 if __name__ == "__main__":
     DATA_FILE = "data.springs"
-    DUMP_PATTERN = "dump.springs_loop.*.lammpstrj"
+    DUMP_PATTERN = "output/dump.springs_loop.*.lammpstrj"
 
     # 1. Get bond connectivity and full box size from the data file
     try:
@@ -198,4 +198,4 @@ if __name__ == "__main__":
 
     # 4. Create the movie from the generated frames
     create_movie(frame_filenames, "simulation_movie.gif")
-    print("Movie saved to 'simulation_movie.gif'")
+    print("Movie saved to 'output/simulation_movie.gif'")

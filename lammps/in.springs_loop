@@ -18,6 +18,17 @@ read_data       data.springs
 bond_style      harmonic
 bond_coeff      1 100.0 1.0
 
+# -- Define a non-interacting pair style to force neighbor list builds.
+# This is the critical fix for the "Bond atom missing" error, as it
+# makes the subsequent 'neighbor' command effective.
+pair_style      zero 1.0
+pair_coeff      * *
+
+# -- Neighbor list settings
+# Increase the skin distance to handle large displacements between minimizations.
+neighbor        4.0 bin
+neigh_modify    every 1 delay 0 check yes
+
 # -- Add random displacement to initial grid positions to break symmetry
 displace_atoms  all random 0.01 0.01 0.0 8675309
 
@@ -43,16 +54,15 @@ print           "Starting quasi-static pulling simulation..."
 print           "Step,TotalEnergy" # CSV header
 
 # -- Loop and displacement variables
-# We need the initial distance D. We can compute it from the group bounds once.
 variable y_max_top equal bound(top,ymax)
 variable y_min_bot equal bound(bottom,ymin)
 variable D_initial equal $(v_y_max_top - v_y_min_bot)
-variable pull_dist equal 0.1*${D_initial}
-variable n_steps equal 10
+variable pull_dist equal 0.01*${D_initial}
+variable n_steps equal 100
 
 variable E equal etotal
 
-# -- Main loop
+# -- Main loop (Corrected Structure)
 variable i loop ${n_steps}
 label           pull_loop
 
@@ -62,10 +72,16 @@ label           pull_loop
 
     print           "$(v_i),${E}"
 
-    dump            1 all custom 1 dump.springs_loop.$(v_i).lammpstrj id type x y z
+    # Use of ${i} is the standard way to substitute a variable in a dump filename
+    dump            1 all custom 1 output/dump.springs_loop.${i}.lammpstrj id type x y z
     run             0
     undump          1
 
-    jump SELF pull_loop
+    # Correctly increment the loop variable and jump back.
+    # When the loop is finished, 'next' will cause the script to
+    # skip the jump command and proceed.
+    next            i
+    jump            SELF pull_loop
 
+label           loop_end # The 'next' command jumps here when the loop is done
 print           "Simulation loop finished."

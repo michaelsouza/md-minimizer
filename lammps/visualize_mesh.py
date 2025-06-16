@@ -111,9 +111,9 @@ def visualize_mesh(atoms: Dict[int, Tuple[float, float]], bonds: List[Tuple[int,
     ax.set_aspect("equal", adjustable="box")
 
     plt.tight_layout()
-    plt.savefig("initial_mesh.png")
+    plt.savefig("output/initial_mesh.png")
 
-    print("Mesh visualization saved to 'initial_mesh.png'")
+    print("Mesh visualization saved to 'output/initial_mesh.png'")
 
 
 if __name__ == "__main__":
