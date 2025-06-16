@@ -1,0 +1,12 @@
+system: |-
+  - Ubuntu
+  - LAMMPS
+files:
+  - "lammps/generate_data.py"
+  - "lammps/in.springs"
+  - "lammps/visualize.py"
+  - "README.md"
+prompts:
+  CodeChanges: "Do not copy the entire source code. Just give me the complete version of the modified members (functions, classes, ...) and explain where should I put them."
+  CodeFull: "Write a complete updated source code."
+  GitMessage: "Please write a clear, conventional commit message based on the following git_diff, which shows the STAGED changes:"
