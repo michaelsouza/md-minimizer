@@ -4,8 +4,8 @@ system: |-
   - LAMMPS
 files:
   - "lammps/generate_data.py"
-  - "lammps/in.springs_loop"
   - "lammps/data.springs"
+  - "lammps/in.springs"
   - "lammps/visualize_simulation.py"
   - "lammps/visualize_mesh.py"
   - "lammps/log.lammps"

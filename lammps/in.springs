@@ -1,46 +1,91 @@
-# LAMMPS input script for a 2D spring network
+# LAMMPS input script for a 2D spring network (using atom types for groups)
 
 # 1. Initialization
 # --------------------
-units           lj          # Use standard Lennard-Jones units
-dimension       2           # This is a 2D simulation
-boundary        p f p       # Periodic in X and Z, Fixed (non-periodic) in Y
-atom_style      bond        # We have particles connected by bonds
+units           lj
+dimension       2
+boundary        p f p
+atom_style      bond
 
 # 2. System Definition
 # --------------------
-read_data       data.springs # Read particle positions and bonds from data file
+# This data file MUST have:
+# - 3 atom types: 1=mobile, 2=bottom, 3=top
+# - 2 bond types: 1=stiff, 2=soft
+read_data       data.springs
 
 # 3. Settings
 # --------------------
 # -- Interactions
-bond_style      harmonic      # Use a simple harmonic spring potential F = -k(r-r0)
-bond_coeff      1 100.0 1.0   # For bond type 1: k=100.0, r0=1.0 (rest length)
+bond_style      harmonic
+# bond_coeff bond_type K R0
+bond_coeff      1 100.0 1.0  # Stiff springs
+bond_coeff      2 50.0  1.0  # Soft springs (half stiffness)
 
-# -- Add random displacement to initial grid positions
+# -- Define a non-interacting pair style to force neighbor list builds.
+# This is the critical fix for the "Bond atom missing" error, as it
+# makes the subsequent 'neighbor' command effective.
+pair_style      zero 1.0
+pair_coeff      * *
+
+# -- Neighbor list settings
+# Increase the skin distance to handle large displacements between minimizations.
+neighbor        4.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+# -- Add random displacement to initial grid positions to break symmetry
 displace_atoms  all random 0.01 0.01 0.0 8675309
 
-# -- Energy minimization
-min_style cg
-minimize 1.0e-4 1.0e-6 1000 10000
+# -- Define Groups based on Atom Type (MUCH SIMPLER AND MORE ROBUST)
+group           bottom       type 2
+group           top          type 3
+group           mobile       type 1
 
-# -- Define Groups
-region          bottom_plane block INF INF 0.0 0.1 INF INF   # Region for bottom bar
-region          top_plane    block INF INF 8.9 9.0 INF INF   # Region for top bar
-group           bottom       region bottom_plane              # Atoms in the bottom bar
-group           top          region top_plane                  # Atoms in the top bar
-group           fixed        union bottom top                  # Union of both bars
-group           mobile       subtract all fixed                # All atoms that are not fixed
+# -- Fix the bars in place by zeroing out their forces.
+fix             1 bottom setforce 0.0 0.0 0.0
+fix             2 top setforce 0.0 0.0 0.0
 
-# -- Dynamics and Constraints
-fix             1 fixed setforce 0.0 0.0 0.0  # Fix the top/bottom bars by zeroing their force
-fix             2 mobile nve                   # Apply NVE dynamics to the mobile atoms
+# -- Initial Energy Minimization
+echo            both
+print           "Performing initial energy minimization..."
+min_style       cg
+minimize        1.0e-4 1.0e-6 1000 10000
+print           "Initial minimization complete."
 
-# -- Computes and Outputs
-thermo_style    custom step temp pe ke etotal press
-thermo          1000                         # Print thermo data every 1000 steps
-dump            1 all custom 500 dump.springs.lammpstrj id type x y z # Dump coordinates
-
-# 4. Run
+# 4. Quasi-static Pulling Loop
 # --------------------
-run             50000                        # Run for 50000 steps
+print           "Starting quasi-static pulling simulation..."
+print           "Step,TotalEnergy" # CSV header
+
+# -- Loop and displacement variables
+variable y_max_top equal bound(top,ymax)
+variable y_min_bot equal bound(bottom,ymin)
+variable D_initial equal $(v_y_max_top - v_y_min_bot)
+variable pull_dist equal 0.01*${D_initial}
+variable n_steps equal 100
+
+variable E equal etotal
+
+# -- Main loop (Corrected Structure)
+variable i loop ${n_steps}
+label           pull_loop
+
+    displace_atoms  top move 0 ${pull_dist} 0 units box
+
+    minimize        1.0e-4 1.0e-6 1000 10000
+
+    print           "$(v_i),${E}"
+
+    # Use of ${i} is the standard way to substitute a variable in a dump filename
+    dump            1 all custom 1 output/dump.springs_loop.${i}.lammpstrj id type x y z
+    run             0
+    undump          1
+
+    # Correctly increment the loop variable and jump back.
+    # When the loop is finished, 'next' will cause the script to
+    # skip the jump command and proceed.
+    next            i
+    jump            SELF pull_loop
+
+label           loop_end # The 'next' command jumps here when the loop is done
+print           "Simulation loop finished."

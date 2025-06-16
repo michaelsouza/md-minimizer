@@ -1,8 +1,9 @@
 """
 visualize_mesh.py
 
-This script reads a LAMMPS data file ('data.springs') and visualizes the 
+This script reads a LAMMPS data file ('data.springs') and visualizes the
 initial 2D mesh of atoms and bonds using matplotlib.
+It now color-codes bonds based on their type.
 
 This is useful for verifying the output of 'generate_data.py'.
 """
@@ -13,9 +14,9 @@ import matplotlib.pyplot as plt
 
 def parse_lammps_data(
     filename: str,
-) -> Tuple[Dict[int, Tuple[float, float]], List[Tuple[int, int]]]:
+) -> Tuple[Dict[int, Tuple[float, float]], List[Tuple[int, int, int]]]:
     """
-    Parses a LAMMPS data file to extract atom positions and bonds.
+    Parses a LAMMPS data file to extract atom positions and typed bonds.
 
     Args:
         filename: The path to the LAMMPS data file.
@@ -23,7 +24,8 @@ def parse_lammps_data(
     Returns:
         A tuple containing:
         - A dictionary mapping atom IDs to their (x, y) coordinates.
-        - A list of tuples, where each tuple represents a bond between two atom IDs.
+        - A list of tuples, where each tuple represents a bond
+          (bond_type, atom1_id, atom2_id).
     """
     atoms = {}
     bonds = []
@@ -60,8 +62,10 @@ def parse_lammps_data(
                 elif reading_bonds:
                     parts = line.split()
                     if len(parts) >= 4:
+                        # --- MODIFIED: Read bond type (column 2) ---
+                        bond_type = int(parts[1])
                         p1, p2 = int(parts[2]), int(parts[3])
-                        bonds.append((p1, p2))
+                        bonds.append((bond_type, p1, p2))
 
     except FileNotFoundError:
         print(f"Error: The file '{filename}' was not found.")
@@ -71,13 +75,15 @@ def parse_lammps_data(
     return atoms, bonds
 
 
-def visualize_mesh(atoms: Dict[int, Tuple[float, float]], bonds: List[Tuple[int, int]]):
+def visualize_mesh(
+    atoms: Dict[int, Tuple[float, float]], bonds: List[Tuple[int, int, int]]
+):
     """
-    Generates and displays a plot of the mesh from atom and bond data.
+    Generates and displays a plot of the mesh from atom and typed bond data.
 
     Args:
         atoms: A dictionary of atom positions (ID -> (x, y)).
-        bonds: A list of bonds connecting atom IDs.
+        bonds: A list of bonds (bond_type, p1, p2).
     """
     if not atoms:
         print("No atom data to visualize.")
@@ -86,16 +92,32 @@ def visualize_mesh(atoms: Dict[int, Tuple[float, float]], bonds: List[Tuple[int,
     plt.style.use("seaborn-v0_8-whitegrid")
     _, ax = plt.subplots(figsize=(10, 10))
 
-    # --- Plot Bonds ---
-    # Draw the lines first so they appear behind the atom markers.
-    for p1_id, p2_id in bonds:
-        # Check if both atoms in the bond exist in the atoms dictionary
+    # --- MODIFIED: Plot Bonds with different colors ---
+    bond_colors = {1: "darkblue", 2: "firebrick"}
+    bond_labels = {1: "Stiff Spring (Type 1)", 2: "Soft Spring (Type 2)"}
+    plotted_labels = set()  # To avoid duplicate legend entries
+
+    for bond_type, p1_id, p2_id in bonds:
         if p1_id in atoms and p2_id in atoms:
             x_coords = [atoms[p1_id][0], atoms[p2_id][0]]
             y_coords = [atoms[p1_id][1], atoms[p2_id][1]]
-            ax.plot(
-                x_coords, y_coords, "k-", linewidth=1.5, color="royalblue", zorder=1
-            )
+            color = bond_colors.get(bond_type, "grey")
+            label = bond_labels.get(bond_type)
+
+            # Plot with a label only once to keep the legend clean
+            if label and label not in plotted_labels:
+                ax.plot(
+                    x_coords,
+                    y_coords,
+                    "-",
+                    linewidth=1.5,
+                    color=color,
+                    zorder=1,
+                    label=label,
+                )
+                plotted_labels.add(label)
+            else:
+                ax.plot(x_coords, y_coords, "-", linewidth=1.5, color=color, zorder=1)
 
     # --- Plot Atoms ---
     x_vals = [pos[0] for pos in atoms.values()]
@@ -106,8 +128,7 @@ def visualize_mesh(atoms: Dict[int, Tuple[float, float]], bonds: List[Tuple[int,
     ax.set_xlabel("X-coordinate", fontsize=12)
     ax.set_ylabel("Y-coordinate", fontsize=12)
     ax.set_title("Initial Spring Network Mesh", fontsize=16, fontweight="bold")
-
-    # Ensure the scaling is equal in x and y directions to see the true geometry
+    ax.legend(title="Bond Types")
     ax.set_aspect("equal", adjustable="box")
 
     plt.tight_layout()

@@ -3,7 +3,7 @@ visualize_simulation.py
 
 This script reads a series of LAMMPS dump files from a looped simulation,
 plots the state of the spring network for each step, and compiles the
-resulting images into a movie.
+resulting images into a movie. It now color-codes bonds by type.
 
 The visualization style is matched to 'visualize_mesh.py' for consistency.
 """
@@ -17,9 +17,11 @@ import matplotlib.pyplot as plt
 
 def parse_data_for_viz(
     data_filename: str,
-) -> Tuple[Dict[int, Tuple[float, float]], List[Tuple[int, int]], Dict[str, float]]:
+) -> Tuple[
+    Dict[int, Tuple[float, float]], List[Tuple[int, int, int]], Dict[str, float]
+]:
     """
-    Parses a LAMMPS data file to extract bonds and box dimensions.
+    Parses a LAMMPS data file to extract bonds (with types) and box dimensions.
 
     Args:
         data_filename: The path to the LAMMPS data file ('data.springs').
@@ -27,7 +29,7 @@ def parse_data_for_viz(
     Returns:
         A tuple containing:
         - A dictionary mapping atom IDs to their initial (x, y) coordinates.
-        - A list of tuples, representing bonds between atom IDs.
+        - A list of tuples, representing bonds (bond_type, atom1_id, atom2_id).
         - A dictionary with the simulation box boundaries ('xlo', 'xhi', 'ylo', 'yhi').
     """
     atoms = {}
@@ -67,8 +69,10 @@ def parse_data_for_viz(
             elif reading_bonds:
                 parts = line.split()
                 if len(parts) >= 4:
+                    # --- MODIFIED: Read bond type (column 2) ---
+                    bond_type = int(parts[1])
                     p1, p2 = int(parts[2]), int(parts[3])
-                    bonds.append((p1, p2))
+                    bonds.append((bond_type, p1, p2))
     return atoms, bonds, box
 
 
@@ -100,7 +104,7 @@ def read_lammps_dump(dump_filename: str) -> Dict[int, Tuple[float, float]]:
 def visualize_frame(
     step_num: int,
     positions: Dict[int, Tuple[float, float]],
-    bonds: List[Tuple[int, int]],
+    bonds: List[Tuple[int, int, int]],
     box: Dict[str, float],
 ) -> str:
     """
@@ -109,7 +113,7 @@ def visualize_frame(
     Args:
         step_num: The current simulation step number (for the title).
         positions: A dictionary of atom positions for the current step.
-        bonds: A list of bonds connecting atom IDs.
+        bonds: A list of bonds connecting atom IDs (bond_type, p1, p2).
         box: A dictionary with the simulation box boundaries for setting axis limits.
 
     Returns:
@@ -118,14 +122,15 @@ def visualize_frame(
     plt.style.use("seaborn-v0_8-whitegrid")
     _, ax = plt.subplots(figsize=(8, 10))
 
-    # Plot bonds
-    for p1_id, p2_id in bonds:
+    # --- MODIFIED: Plot bonds with different colors ---
+    bond_colors = {1: "darkblue", 2: "firebrick"}
+
+    for bond_type, p1_id, p2_id in bonds:
         if p1_id in positions and p2_id in positions:
             x_coords = [positions[p1_id][0], positions[p2_id][0]]
             y_coords = [positions[p1_id][1], positions[p2_id][1]]
-            ax.plot(
-                x_coords, y_coords, "k-", linewidth=1.5, color="royalblue", zorder=1
-            )
+            color = bond_colors.get(bond_type, "grey")
+            ax.plot(x_coords, y_coords, "-", linewidth=1.5, color=color, zorder=1)
 
     # Plot atoms
     x_vals = [pos[0] for pos in positions.values()]
@@ -158,7 +163,7 @@ def create_movie(image_files: List[str], output_filename: str):
         output_filename: The name of the output movie file (e.g., 'movie.gif').
     """
     with imageio.get_writer(
-        f"output/{output_filename}", mode="I", duration=0.5, loop=0
+        f"output/{output_filename}", mode="I", duration=0.2, loop=0
     ) as writer:
         for filename in image_files:
             image = imageio.imread(filename)
@@ -198,4 +203,3 @@ if __name__ == "__main__":
 
     # 4. Create the movie from the generated frames
     create_movie(frame_filenames, "simulation_movie.gif")
-    print("Movie saved to 'output/simulation_movie.gif'")
