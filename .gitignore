@@ -44,3 +44,4 @@ lammps/output/*
 tree.txt
 lammps/N12_Lmat4*
 log.lammps
+dump.step0.lammpstrj
