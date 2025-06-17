@@ -3,8 +3,7 @@ system: |-
   - Conda (Python 3.12)
   - LAMMPS
 files:
-  - "lammps/generate_data.py"
-  - "lammps/data.springs"
+  - "lammps/generate_lammps_input.py"
   - "lammps/in.springs"
   - "lammps/visualize_simulation.py"
   - "lammps/visualize_mesh.py"

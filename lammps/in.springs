@@ -1,125 +1,153 @@
-# LAMMPS input script for a 2D spring network with breakable bonds
+# LAMMPS input script for tensile test with avalanche dynamics.
+#
+# This script implements the quasi-static loading method described in
+# Noguchi et al. (2024). It should be run with a variable pointing to the data file.
+# Example: lmp -in lammps/in.springs -v data_file lammps/N12_Lmat4.data
 
-# 1. Initialization
-# --------------------
+log             lammps/log.lammps
+
+print           "IN.SPRINGS (VERSION 3.2 - FINAL PYTHON FIX)"
+
+# --- 1. Initialization & System Definition ---
+variable        data_file index "lammps/N12_Lmat4.data"
+variable        thresholds_filename index "lammps/N12_Lmat4_breaking_thresholds.dat"
+
 units           lj
 dimension       2
-boundary        p f p
+boundary        p s p
 atom_style      bond
 
-# 2. System Definition
-# --------------------
-read_data       data.springs
-
-# 3. Settings
-# --------------------
-# -- Interactions
+# --- 2. Define Interaction Potentials ---
 bond_style      harmonic
-bond_coeff      1 100.0 1.0  # Stiff, breakable springs
-bond_coeff      2 50.0  1.0  # Soft, unbreakable springs
+pair_style      none
 
-# -- Non-interacting pair style for neighbor list builds
-pair_style      zero 1.0
-pair_coeff      * *
+# --- 3. System Setup ---
+read_data       ${data_file}
+group           bottom_atoms type 2
+group           top_atoms type 3
+group           mobile_atoms type 1
 
-# -- Neighbor list settings (Increased skin to address warning in log)
-neighbor        4.5 bin
-neigh_modify    every 1 delay 0 check yes
+# --- 4. Simulation Settings ---
+variable        total_steps equal 200
+variable        strain_inc equal 1.0e-3
+variable        current_step equal 0
+variable        num_broken_total equal 0
 
-# -- Add random displacement
-displace_atoms  all random 0.01 0.01 0.0 8675309
+fix             1 bottom_atoms setforce 0.0 0.0 0.0
+thermo          1
+thermo_style    custom step v_current_step pe press pyy v_num_broken_total
 
-# -- Define Groups based on Atom Type
-group           bottom       type 2
-group           top          type 3
-group           mobile       type 1
+# --- Define placeholder variables for Python to modify ---
+variable        p_bondtype string "none"
+variable        p_breaklen string "none"
+variable        p_is_eof equal 0
 
-# -- Fix the bars in place
-fix             1 bottom setforce 0.0 0.0 0.0
-fix             2 top setforce 0.0 0.0 0.0
+# --- 5. Main Simulation Loop (Quasi-static Loading) ---
+label           main_loop
+variable        current_step loop ${total_steps}
+print           "--- Strain Step ${current_step}/${total_steps} ---"
+displace_atoms  top_atoms move 0 ${strain_inc} 0
 
-# -- Initial Energy Minimization
-echo            both
-print           "Performing initial energy minimization..."
-min_style       cg
-minimize        1.0e-4 1.0e-6 1000 10000
-print           "Initial minimization complete."
+# Avalanche Loop
+label           avalanche_loop
+    minimize        1.0e-5 1.0e-7 1000 10000
+    variable        bonds_before equal count(all,bonds)
 
-# 4. Quasi-static Pulling Loop with Bond Breaking
-# --------------------
-print           "Starting quasi-static pulling simulation with breakable bonds..."
-print           "Step,TotalEnergy,BondsBroken_ThisStep,TotalBondsBroken" # CSV header
+    # --- Setup bond breaking ---
+    variable        break_file file ${thresholds_filename}
+    label           setup_loop
+        variable        current_line index ${break_file}
 
-# -- Loop and displacement variables
-variable D_initial equal (bound(top,ymax)-bound(bottom,ymin))
-variable pull_dist equal 0.1*${D_initial} # Larger pull distance to see bonds break
-variable n_steps equal 10
+        # ROBUST FIX: Define and invoke the python function *inside* the loop
+        # This ensures it captures the current value of the v_current_line variable.
+        python          process_line input 2 SELF v_current_line format ps here """
+def process_line(lmpptr, line):
+    from lammps import lammps
+    lmp = lammps(ptr=lmpptr)
+    if not line or line.strip() == "EOF":
+        lmp.set_variable("p_is_eof", 1)
+        return
+    try:
+        parts = line.strip().split()
+        if len(parts) >= 2:
+            lmp.set_variable("p_bondtype", parts[0])
+            lmp.set_variable("p_breaklen", parts[1])
+            lmp.set_variable("p_is_eof", 0)
+        else:
+            lmp.set_variable("p_is_eof", 1)
+    except Exception as e:
+        print(f"Python error processing line '{line}': {e}")
+        lmp.set_variable("p_is_eof", 1)
+"""
+        python          process_line invoke
 
-# -- Bond Breaking Variables
-variable F_thresh equal 25.0         # Force threshold for breaking type 1 bonds
-variable n_broken_total equal 0      # Cumulative counter for broken bonds
+        if ${p_is_eof} then "jump SELF setup_done"
 
-# -- Computes to get per-bond properties
-# This compute calculates the scalar force on each bond
-compute         bforce all bond/local force
-# *** FIX: Use `compute bond/local` to get bond types. ***
-# This compute creates an array where each row is a bond and the value is its type.
-compute         btype  all bond/local btype
+        print           "DEBUG SETUP: Applying fix Br_${p_bondtype} with type ${p_bondtype} and length ${p_breaklen}"
+        fix             Br_${p_bondtype} all bond/break 1 ${p_bondtype} ${p_breaklen}
 
-# -- Main loop
-variable i loop ${n_steps}
-label           pull_loop
+        variable        current_line delete
+        jump            SELF setup_loop
+    label           setup_done
+    variable        break_file delete
+    variable        current_line delete
 
-    # -- A. Apply displacement
-    print           "--- Pull Step ${i} ---"
-    displace_atoms  top move 0 ${pull_dist} 0 units box
+    print           "DEBUG: Running simulation for 1 step to trigger breaks."
+    run 1
 
-    # -- B. Minimize energy
-    minimize        1.0e-4 1.0e-6 1000 10000
+    # --- Cleanup bond breaking fixes ---
+    variable        break_file file ${thresholds_filename}
+    label           cleanup_loop
+        variable        current_line index ${break_file}
 
-    # -- C. Check for and break over-stressed bonds
-    print           "Checking for broken bonds..."
-    variable n_broken_step equal 0
-    variable n_bonds_current equal count(bonds,all) # Get current number of bonds
+        # Redefine and invoke the function again for the cleanup pass
+        python          process_line input 2 SELF v_current_line format ps here """
+def process_line(lmpptr, line):
+    from lammps import lammps
+    lmp = lammps(ptr=lmpptr)
+    if not line or line.strip() == "EOF":
+        lmp.set_variable("p_is_eof", 1)
+        return
+    try:
+        parts = line.strip().split()
+        if len(parts) >= 2:
+            lmp.set_variable("p_bondtype", parts[0])
+            lmp.set_variable("p_breaklen", parts[1])
+            lmp.set_variable("p_is_eof", 0)
+        else:
+            lmp.set_variable("p_is_eof", 1)
+    except Exception as e:
+        print(f"Python error processing line '{line}': {e}")
+        lmp.set_variable("p_is_eof", 1)
+"""
+        python          process_line invoke
 
-    # Loop over every bond in the system
-    variable j loop ${n_bonds_current}
-    label bond_check_loop
-        # *** FIX: Get properties from the corrected computes ***
-        # The loop index 'j' corresponds to the bond ID because our data file has
-        # contiguous bond IDs starting from 1. This is a critical assumption.
-        variable id   equal ${j}
-        # The new 'c_btype' compute has only one column (the type).
-        variable type equal c_btype[${j}]
-        # This was already correct.
-        variable f    equal c_bforce[${j}]
+        if ${p_is_eof} then "jump SELF cleanup_done"
 
-        # The core logic: if type 1 and force > threshold, "break" it
-        if "${type} == 1 && ${f} > ${F_thresh}" then &
-        "print 'Breaking bond ID ${id} (type ${type}) with force ${f}'" &
-        "set bond ${id} coeff 0.0 1.0" & # Set K=0 to make it inert
-        "variable n_broken_step equal ${n_broken_step}+1"
+        print           "DEBUG CLEANUP: Removing fix Br_${p_bondtype}"
+        unfix           Br_${p_bondtype}
 
-    next j
-    jump SELF bond_check_loop
+        variable        current_line delete
+        jump            SELF cleanup_loop
+    label           cleanup_done
+    variable        break_file delete
+    variable        current_line delete
 
-    # Update total broken count and check if re-minimization is needed
-    if "${n_broken_step} > 0" then &
-    "print 'Broke ${n_broken_step} bonds. Re-minimizing system.'" &
-    "minimize 1.0e-4 1.0e-6 1000 10000" &
-    "variable n_broken_total equal ${n_broken_total}+${n_broken_step}"
+    # Check if any bonds were broken
+    variable        bonds_after equal count(all,bonds)
+    variable        num_broken_iter equal ${bonds_before}-${bonds_after}
+    variable        num_broken_total equal ${num_broken_total}+${num_broken_iter}
 
-    # -- D. Output results for this step
-    variable E equal etotal
-    print           "${i},${E},${n_broken_step},${n_broken_total}"
+    print           "Avalanche iteration: Broke ${num_broken_iter} bonds."
+    if "${num_broken_iter} > 0" then { jump SELF avalanche_loop }
 
-    dump            1 all custom 1 output/dump.springs_loop.${i}.lammpstrj id type x y z
-    run             0
-    undump          1
+# Dump configuration
+dump            DUMP all custom 10 dump.step${current_step}.lammpstrj id type x y z
+run             0
+undump          DUMP
 
-    next i
-    jump SELF pull_loop
+print           "Avalanche finished for strain step ${current_step}. Total broken: ${num_broken_total}"
+next            current_step
+jump            SELF main_loop
 
-label loop_end
-print           "Simulation loop finished."
-print           "A total of ${n_broken_total} bonds were broken."
+print           "Simulation finished."

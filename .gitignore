@@ -35,11 +35,12 @@
 .venv/*
 
 # LAMMPS dump files
-lammps/dump.*.lammpstrj
-lammps/step_*.png
 lammps/log.lammps
 lammps/data.springs
+lammps/output/*
+
+# Project files
 .vscode/git_diff.txt
 tree.txt
-lammps/frame_*.png
-lammps/simulation_movie.gif
+lammps/N12_Lmat4*
+log.lammps
