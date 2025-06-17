@@ -1,5 +1,5 @@
 """
-generate_lammps_input.py
+create_network.py
 
 This single script creates a spring network model and directly generates a
 LAMMPS data file ready for simulations with avalanche dynamics.
@@ -19,7 +19,7 @@ The output is a single LAMMPS data file that includes:
   as described by Noguchi et al. (2024).
 
 Usage:
-    python lammps/generate_lammps_input.py [OPTIONS]
+    python lammps/create_network.py [OPTIONS]
 """
 
 import os
@@ -73,23 +73,45 @@ def get_neighbors(node_id, N):
 
 def is_unbreakable(node1_id, node2_id, N, L_matrix):
     """
-    Check if a bond between two nodes is unbreakable.
+    Determines if the edge between two nodes is unbreakable based on the
+    matrix structure defined by L_matrix.
+
+    Args:
+        node1_id: ID of the first node.
+        node2_id: ID of the second node.
+        N: Grid size.
+        L_matrix: Matrix size parameter.
+
+    Returns:
+        True if the edge should be unbreakable, False otherwise.
     """
-    if L_matrix <= 0:
+    if L_matrix <= 0:  # No matrix structure
         return False
+
     j1, i1 = get_node_indices(node1_id, N)
     j2, i2 = get_node_indices(node2_id, N)
+
     # Ensure j1 <= j2 for easier checking
     if j1 > j2:
         j1, j2 = j2, j1
         i1, i2 = i2, i1
-        node1_id, node2_id = node2_id, node1_id
-    # Check for horizontal unbreakable springs
-    if j1 == j2 and j1 % L_matrix == 0 and (abs(i1 - i2) == 1 or abs(i1 - i2) == N - 1):
+        node1_id, node2_id = node2_id, node1_id  # Keep IDs consistent if needed
+
+    # --- Check for Horizontal Unbreakable Spring ---
+    # Springs are horizontal if they connect nodes in the same row
+    # These exist *on* rows that are multiples of L_matrix
+    if j1 == j2 and j1 % L_matrix == 0:
+        # Check if they are horizontal neighbors (i differs by 1, wrapping around)
+        if abs(i1 - i2) == 1 or abs(i1 - i2) == N - 1:
+            return True
+
+    # --- Check for Zigzag Unbreakable Spring ---
+    # Springs connect row j to row j+1, where j is a multiple of L_matrix
+    if (
+        i1 % L_matrix == 0 and i2 == i1
+    ):  # Must have same column index for this type of connection
         return True
-    # Check for zigzag unbreakable springs
-    if i1 % L_matrix == 0 or i2 == i1:
-        return True
+
     # If none of the above conditions are met, it's breakable
     return False
 
@@ -205,22 +227,44 @@ def write_lammps_data_file(
 
 def display_network(G, save_path):
     """
-    Display the spring network as a PNG image.
+    Display the spring network as a PNG image, including vertex numbers
+    with an offset to prevent overlapping.
     """
     print(f"Saving network visualization to {save_path}...")
-    plt.figure(figsize=(10, 10))
+    # Increase figure size for better clarity
+    plt.figure(figsize=(12, 12))
     pos = nx.get_node_attributes(G, "pos")
     breakable = [(u, v) for u, v, d in G.edges(data=True) if not d.get("is_unbreak")]
     unbreakable = [(u, v) for u, v, d in G.edges(data=True) if d.get("is_unbreak")]
-    nx.draw_networkx_nodes(G, pos, node_size=5, node_color="black")
+
+    # Draw the network components
+    nx.draw_networkx_nodes(G, pos, node_size=20, node_color="black")
     nx.draw_networkx_edges(
         G, pos, edgelist=breakable, width=1, style="dashed", edge_color="black"
     )
     nx.draw_networkx_edges(
         G, pos, edgelist=unbreakable, width=1.5, style="solid", edge_color="red"
     )
+
+    # --- Create offset positions for labels to prevent overlap ---
+    # We will shift each label slightly above its node.
+    # You can adjust the 'y + 0.15' value if needed.
+    label_pos = {node: (x, y + 0.15) for node, (x, y) in pos.items()}
+
+    # --- Add vertex number labels using the new offset positions ---
+    nx.draw_networkx_labels(
+        G,
+        label_pos,  # Use the new offset positions
+        font_size=6,
+        font_color="darkblue",
+        font_weight="bold",
+    )
+
     plt.axis("equal")
-    plt.savefig(save_path, dpi=300)
+    # Add padding to the plot to ensure labels aren't cut off
+    plt.margins(0.1)
+    # Use bbox_inches='tight' to fit the whole plot, including labels
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
 
 
@@ -239,7 +283,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="lammps",
+        default=".",
         help="Directory to save the output files.",
     )
     parser.add_argument(
@@ -268,7 +312,7 @@ if __name__ == "__main__":
     print("\nScript finished successfully.")
     print("To run the simulation, use the generated files with LAMMPS:")
     print(
-        f"/home/michael/gitrepos/lammps/build/lmp -in lammps/in.springs "
+        f"python spring_network.py "
         f"-v data_file {lammps_filepath} "
         f"-v thresholds_filename {thresholds_filepath}"
     )

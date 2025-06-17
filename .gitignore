@@ -44,4 +44,11 @@ lammps/output/*
 tree.txt
 lammps/N12_Lmat4*
 log.lammps
-dump.step0.lammpstrj
+lammps/lammps/N12_Lmat*
+N12_Lmat4_breaking_thresholds.dat
+lammps/dump.*
+.gitignore
+lammps/*.png
+lammps/dump.bonds.step.0.txt
+lammps/simulation_movie.gif
+lammps/log_springs.txt

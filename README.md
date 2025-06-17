@@ -19,7 +19,7 @@ The experiment was performed using a **spring network model**. Imagine a 2D shee
 The researchers simulated a tensile test on their virtual material to see how it would fracture under stress.
 
 1.  **Applying Strain:** The bottom row of particles in the network was held fixed, while the top row was pulled upwards by a very small, incremental amount ($0.1\%$ of the system's height). This simulates stretching the material.
-2.  **Relaxation:** After each small stretch, the system was allowed to reach a state of mechanical equilibrium. This means the particles shifted around until all the forces from the springs were balanced.
+2.  **Relaxation:** After each small stretch, the system (except the bottom and top rows) was allowed to reach a state of mechanical equilibrium. This means the particles shifted around until all the forces from the springs were balanced.
 3.  **Checking for Breaks:** In this new equilibrium state, the strain on every single spring was calculated. If any spring's strain exceeded its predetermined breaking threshold, it was removed.
 4.  **Avalanche of Breaks:** The removal of one spring redistributes its load to its neighbors, which can cause them to break. This can trigger a chain reaction, or an **avalanche**, where many springs break in a single step before the system finds a new stable equilibrium.
 5.  **Iteration:** This process of stretching, relaxing, and breaking springs was repeated until the entire material fractured into two separate pieces or the total strain reached a maximum limit.
