@@ -1,6 +1,4 @@
 """springs.py
-Python re-implementation of `lammps/in.springs`.
-
 Runs a quasi-static tensile test with avalanche dynamics by driving the top
 atoms upward in small strain increments and allowing bond breaking according
 to per-bond thresholds read from an external file.

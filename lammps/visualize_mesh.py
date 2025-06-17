@@ -8,6 +8,7 @@ It now color-codes bonds based on their type.
 This is useful for verifying the output of 'generate_data.py'.
 """
 
+import sys
 from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 
@@ -138,6 +139,6 @@ def visualize_mesh(
 
 
 if __name__ == "__main__":
-    DATA_FILE = "data.springs"
+    DATA_FILE = sys.argv[1]
     atom_positions, bond_connections = parse_lammps_data(DATA_FILE)
     visualize_mesh(atom_positions, bond_connections)

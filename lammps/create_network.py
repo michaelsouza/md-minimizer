@@ -79,15 +79,18 @@ def is_unbreakable(node1_id, node2_id, N, L_matrix):
         return False
     j1, i1 = get_node_indices(node1_id, N)
     j2, i2 = get_node_indices(node2_id, N)
+    # Ensure j1 <= j2 for easier checking
     if j1 > j2:
         j1, j2 = j2, j1
+        i1, i2 = i2, i1
+        node1_id, node2_id = node2_id, node1_id
+    # Check for horizontal unbreakable springs
     if j1 == j2 and j1 % L_matrix == 0 and (abs(i1 - i2) == 1 or abs(i1 - i2) == N - 1):
         return True
-    # Corrected logic for vertical/diagonal connections in the matrix
-    if j2 == j1 + 1 and (i1 % L_matrix == 0 or (i1 + (j1 % 2)) % L_matrix == 0):
-        # This part may need to be adjusted based on the exact desired matrix structure
-        if abs(i1 - i2) <= 1 or (j1 % 2 != 0 and i2 == i1 - 1):
-            return True  # Simplified check, may need refinement
+    # Check for zigzag unbreakable springs
+    if i1 % L_matrix == 0 or i2 == i1:
+        return True
+    # If none of the above conditions are met, it's breakable
     return False
 
 
@@ -189,14 +192,14 @@ def write_lammps_data_file(
         f.write("Atoms # id molecule-id type x y z\n\n")
         f.write("\n".join(atom_lines) + "\n\n")
         f.write("Bonds # id type p1 p2\n\n")
-        f.write("\n".join(bond_lines) + "\n") 
+        f.write("\n".join(bond_lines) + "\n")
     print(f"Successfully wrote LAMMPS data file with {num_bond_types} bond types.")
 
     # Write the breaking thresholds file
     print(f"Generating breaking thresholds file: {thresholds_filename}")
     with open(thresholds_filename, "w", encoding="utf-8", newline="\n") as f:
         f.write("# Bond Type, Breaking Length\n")
-        f.write("\n".join(breaking_threshold_lines) + "\n") 
+        f.write("\n".join(breaking_threshold_lines) + "\n")
     print("Successfully wrote breaking thresholds file.")
 
 
