@@ -52,3 +52,5 @@ lammps/*.png
 lammps/dump.bonds.step.0.txt
 lammps/simulation_movie.gif
 lammps/log_springs.txt
+outputs/dump.*
+outputs/frame_*

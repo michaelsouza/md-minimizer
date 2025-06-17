@@ -1,5 +1,0 @@
-# Visualization dependencies
-seaborn>=0.13.2
-matplotlib>=3.4
-numpy>=1.20
-pandas>=1.2

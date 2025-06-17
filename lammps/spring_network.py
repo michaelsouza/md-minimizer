@@ -1,4 +1,4 @@
-"""springs.py
+"""springs_network.py
 Runs a quasi-static tensile test with avalanche dynamics by driving the top
 atoms upward in small strain increments and allowing bond breaking according
 to per-bond thresholds read from an external file.
@@ -112,6 +112,7 @@ def run_simulation(
 
         # Loop da avalanche
         while True:
+            lmp.command("min_style fire")
             lmp.command("minimize 1.0e-5 1.0e-7 1000 10000")
 
             lmp.command("variable bonds_now equal bonds")

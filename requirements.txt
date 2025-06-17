@@ -1,0 +1,30 @@
+ase @ file:///home/conda/feedstock_root/build_artifacts/ase_1744459813439/work
+blinker @ file:///home/conda/feedstock_root/build_artifacts/blinker_1731096409132/work
+click @ file:///home/conda/feedstock_root/build_artifacts/click_1747811314515/work
+contourpy @ file:///home/conda/feedstock_root/build_artifacts/contourpy_1744743063425/work
+cycler @ file:///home/conda/feedstock_root/build_artifacts/cycler_1733332471406/work
+f90wrap @ file:///home/conda/feedstock_root/build_artifacts/f90wrap_1731858477263/work
+Flask @ file:///home/conda/feedstock_root/build_artifacts/flask_1747203985407/work
+fonttools @ file:///home/conda/feedstock_root/build_artifacts/fonttools_1749848302406/work
+imageio @ file:///home/conda/feedstock_root/build_artifacts/imageio_1738273805233/work
+importlib_metadata @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_importlib-metadata_1747934053/work
+itsdangerous @ file:///home/conda/feedstock_root/build_artifacts/itsdangerous_1733308265247/work
+Jinja2 @ file:///home/conda/feedstock_root/build_artifacts/jinja2_1741263328855/work
+kiwisolver @ file:///home/conda/feedstock_root/build_artifacts/kiwisolver_1725459263097/work
+lammps @ file:///home/conda/feedstock_root/build_artifacts/lammps_1725318905925/work/python
+MarkupSafe @ file:///home/conda/feedstock_root/build_artifacts/markupsafe_1733219680183/work
+matplotlib==3.10.3
+mpi4py @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_mpi4py_1746789189/work
+munkres==1.1.4
+networkx @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_networkx_1749078300/work
+numpy @ file:///home/conda/feedstock_root/build_artifacts/numpy_1707225376651/work/dist/numpy-1.26.4-cp311-cp311-linux_x86_64.whl#sha256=d08e1c9e5833ae7780563812aa73e2497db1ee3bd5510d3becb8aa18aa2d0c7c
+packaging @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_packaging_1745345660/work
+pillow @ file:///home/conda/feedstock_root/build_artifacts/pillow_1746646210358/work
+pyparsing @ file:///home/conda/feedstock_root/build_artifacts/pyparsing_1743089729650/work
+python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/python-dateutil_1733215673016/work
+quippy-ase @ file:///home/conda/feedstock_root/build_artifacts/quippy_1706036644403/work/build/linux_x86_64_gfortran
+scipy @ file:///home/conda/feedstock_root/build_artifacts/scipy-split_1739790648951/work/dist/scipy-1.15.2-cp311-cp311-linux_x86_64.whl#sha256=034f74dff07afe60a41ed832856d3d7e1ec1374d115cd88d525ace252f5b36fc
+six @ file:///home/conda/feedstock_root/build_artifacts/six_1733380938961/work
+unicodedata2 @ file:///home/conda/feedstock_root/build_artifacts/unicodedata2_1736692517942/work
+Werkzeug @ file:///home/conda/feedstock_root/build_artifacts/werkzeug_1733160440960/work
+zipp @ file:///home/conda/feedstock_root/build_artifacts/zipp_1749421620841/work
