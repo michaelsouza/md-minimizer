@@ -175,7 +175,7 @@ def write_lammps_data_file(
     breaking_threshold_lines = []
 
     # Bond type 1 is for unbreakable bonds, types 2+ are for breakable bonds.
-    bond_coeff_lines.append("1 100.0 1.0")
+    bond_coeff_lines.append("1 1.0 1.0")
     bond_id, breakable_type = 1, 2
 
     for u, v, data in edges:
@@ -183,11 +183,11 @@ def write_lammps_data_file(
             bond_lines.append(f"{bond_id} 1 {u+1} {v+1}")
         else:
             # Each breakable bond gets a unique type to allow individual breaking
-            bond_coeff_lines.append(f"{breakable_type} 100.0 1.0")
+            bond_coeff_lines.append(f"{breakable_type} 1.0 1.0")
 
             # Determine breaking length and write to separate file
-            breaking_strain = random.gauss(strain_mean, strain_std)
-            breaking_length = l0 * (1.0 + breaking_strain)
+            breaking_strain = random.uniform(0.0, 1.0)
+            breaking_length = l0 * (1 + breaking_strain)
             breaking_threshold_lines.append(f"{breakable_type} {breaking_length:.6f}")
 
             bond_lines.append(f"{bond_id} {breakable_type} {u+1} {v+1}")
@@ -227,43 +227,49 @@ def write_lammps_data_file(
 
 def display_network(G, save_path):
     """
-    Display the spring network as a PNG image, including vertex numbers
-    with an offset to prevent overlapping.
+    Display the spring network as a PNG image, EXCLUDING periodic boundary
+    connections for better visualization.
     """
     print(f"Saving network visualization to {save_path}...")
-    # Increase figure size for better clarity
     plt.figure(figsize=(12, 12))
     pos = nx.get_node_attributes(G, "pos")
-    breakable = [(u, v) for u, v, d in G.edges(data=True) if not d.get("is_unbreak")]
-    unbreakable = [(u, v) for u, v, d in G.edges(data=True) if d.get("is_unbreak")]
 
-    # Draw the network components
-    nx.draw_networkx_nodes(G, pos, node_size=20, node_color="black")
+    # Determinar o tamanho da rede N para identificar as bordas
+    # O número de nós é N*N, então N é a raiz quadrada do número de nós.
+    N = int(math.sqrt(G.number_of_nodes()))
+
+    # --- Filtro para remover as ligações de contorno periódico ---
+    # Uma ligação (u, v) é periódica se conecta a coluna 0 à coluna N-1.
+    # Isso acontece quando a diferença absoluta dos índices de coluna é N-1.
+
+    # Lista de arestas quebráveis, excluindo as periódicas
+    breakable = [
+        (u, v)
+        for u, v, d in G.edges(data=True)
+        if not d.get("is_unbreak")
+        and abs(G.nodes[u]["col"] - G.nodes[v]["col"]) != N - 1
+    ]
+
+    # Lista de arestas inquebráveis, excluindo as periódicas
+    unbreakable = [
+        (u, v)
+        for u, v, d in G.edges(data=True)
+        if d.get("is_unbreak") and abs(G.nodes[u]["col"] - G.nodes[v]["col"]) != N - 1
+    ]
+
+    # --- Desenha os componentes da rede com as listas filtradas ---
+    nx.draw_networkx_nodes(G, pos, node_size=15, node_color="black")
     nx.draw_networkx_edges(
-        G, pos, edgelist=breakable, width=1, style="dashed", edge_color="black"
+        G, pos, edgelist=breakable, width=0.3, style="solid", edge_color="black"
     )
     nx.draw_networkx_edges(
         G, pos, edgelist=unbreakable, width=1.5, style="solid", edge_color="red"
     )
 
-    # --- Create offset positions for labels to prevent overlap ---
-    # We will shift each label slightly above its node.
-    # You can adjust the 'y + 0.15' value if needed.
-    label_pos = {node: (x, y + 0.15) for node, (x, y) in pos.items()}
-
-    # --- Add vertex number labels using the new offset positions ---
-    nx.draw_networkx_labels(
-        G,
-        label_pos,  # Use the new offset positions
-        font_size=6,
-        font_color="darkblue",
-        font_weight="bold",
-    )
+    # O bloco para desenhar os labels dos nós já deve estar comentado ou removido.
 
     plt.axis("equal")
-    # Add padding to the plot to ensure labels aren't cut off
     plt.margins(0.1)
-    # Use bbox_inches='tight' to fit the whole plot, including labels
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
 

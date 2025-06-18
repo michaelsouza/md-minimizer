@@ -43,3 +43,22 @@ The study focused on three main experimental observations:
 
 * **Experiment:** The researchers analyzed the geometry of the broken springs, treating connected broken springs as "crack clusters." They introduced a quantity, $\Delta C$, to measure the growth of these clusters in each step and correlated it with the corresponding stress drop, $\Delta\Sigma$.
 * **Finding:** A strong relationship was found: when new breaks occurred far from existing cracks, the stress drop was small. However, when new breaks linked up with existing cracks to form a larger, more significant crack, the resulting stress drop was much larger. They showed that the average stress drop increases as a power law with the growth of the crack cluster size ($\Delta C$). Furthermore, they found that the maximum size a crack could attain was limited by the matrix, and this relationship could also be described by a scaling exponent that was consistent with the one found for the stress drop analysis. This confirmed that the matrix directly controls crack growth, which in turn governs the magnitude of stress drops and the overall ductile behavior of the material.
+
+#### Executando os Experimentos
+
+1) Para rodar os experimentos, precisamos primeiro ativar o ambiente virtual Python do Anaconda.
+
+```bash
+conda activate lammps
+```
+
+2) Com o ambiente ativado, o primeiro passo seria criar uma rede de partículas utilizando o arquivo `create_network.py`. Este script gera um arquivo de entrada para o LAMMPS, que é o simulador utilizado.
+
+```bash
+python lammps/create_network.py --N 96 --L_matrix 6 --output networks
+```
+Aqui voce passa um tamanho de rede $N$ e o tamanho da matriz $L_{\text{matrix}}$. O local de saida `network_6.txt` conterá a configuração inicial da rede.
+
+3) Para executar a simulação de fato, vamos usar o comando
+
+```bash

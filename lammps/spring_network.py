@@ -4,9 +4,14 @@ atoms upward in small strain increments and allowing bond breaking according
 to per-bond thresholds read from an external file.
 
 Usage (example):
-    python lammps/springs.py \
-        --data-file lammps/N12_Lmat4.data \
-        --thresholds lammps/N12_Lmat4_breaking_thresholds.dat
+    python spring_network.py \
+        --data-file networks/N48_Lmat6.data \
+        --thresholds networks/N48_Lmat6_breaking_thresholds.dat \
+        --total-steps 10 \
+        --strain-inc 0.1 \
+        --n-threads 4 \
+        --disable-dumps \
+        --lmp-args -log none -screen none
 
 Requirements:
     * lammps (Python module, compiled with PYTHON, MC, MOLECULE packages)
@@ -20,7 +25,8 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Tuple, List  # pylint: disable=unused-import
+from typing import Tuple, List
+import time
 
 try:
     from lammps import lammps  # type: ignore
@@ -65,7 +71,9 @@ def run_simulation(
     thresholds_file: pathlib.Path,
     total_steps: int = 200,
     strain_inc: float = 1.0e-3,
-    lmp_cmdargs: Tuple[str, ...]=(),
+    enable_dumps: bool = True,
+    n_threads: int = 1,
+    lmp_cmdargs: Tuple[str, ...] = (),
 ):
     """Executa o teste de tração quase-estático."""
     if not data_file.is_file():
@@ -76,8 +84,13 @@ def run_simulation(
     # Pré-processa os limites de quebra para acelerar os loops
     threshold_pairs = parse_thresholds(thresholds_file)
 
+    # Prepara argumentos adicionais para paralelismo (OpenMP) se solicitado.
+    extra_args: list[str] = list(lmp_cmdargs)
+    if n_threads > 1 and "-pk" not in extra_args:
+        extra_args.extend(["-pk", "omp", str(n_threads), "-sf", "omp"])
+
     # Cria a instância do LAMMPS
-    lmp = lammps(cmdargs=list(lmp_cmdargs))
+    lmp = lammps(cmdargs=extra_args)
 
     # --- Inicialização e definição do sistema ---
     lmp.commands_list(
@@ -111,25 +124,39 @@ def run_simulation(
         lmp.command("fix 2 top_atoms setforce 0.0 0.0 0.0")
 
         # Loop da avalanche
+        tic_outer = time.perf_counter()
         while True:
-            lmp.command("min_style fire")
+            tic = time.perf_counter()
+            lmp.command("min_style cg")
             lmp.command("minimize 1.0e-5 1.0e-7 1000 10000")
+            toc = time.perf_counter()
+            print(f"   time (minimize): {toc - tic:.6f} seconds", flush=True)
 
             lmp.command("variable bonds_now equal bonds")
             bonds_before = int(lmp.extract_variable("bonds_now", None, 0))
 
+            tic = time.perf_counter()
             for bond_type, break_len in threshold_pairs:
                 fix_name = f"Br_{bond_type}"
                 lmp.command(f"fix {fix_name} all bond/break 1 {bond_type} {break_len}")
+            toc = time.perf_counter()
+            print(f"   time (breakage): {toc - tic:.6f} seconds", flush=True)
 
+            tic = time.perf_counter()
             lmp.command("run 1 post no")
+            toc = time.perf_counter()
+            print(f"   time      (run): {toc - tic:.6f} seconds", flush=True)
 
+            tic = time.perf_counter()
             for bond_type, _ in threshold_pairs:
                 fix_name = f"Br_{bond_type}"
                 try:
                     lmp.command(f"unfix {fix_name}")
                 except RuntimeError:
                     pass
+
+            toc = time.perf_counter()
+            print(f"   time (unfixing): {toc - tic:.6f} seconds", flush=True)
 
             lmp.command("variable bonds_now equal bonds")
             bonds_after = int(lmp.extract_variable("bonds_now", None, 0))
@@ -144,25 +171,31 @@ def run_simulation(
         # Libera os átomos do topo para o próximo passo de deslocamento
         lmp.command("unfix 2")
 
-        # --- Bloco de Dump ---
-        # Salva as posições dos átomos em um arquivo
-        dumpfile_atoms = f"dump.atoms.step.{step_id}.lammpstrj"
-        lmp.command(f"dump D_atom all custom 1 {dumpfile_atoms} id type x y z")
+        if enable_dumps:
+            # --- Bloco de Dump ---
+            # Salva as posições dos átomos em um arquivo
+            dumpfile_atoms = f"dump.atoms.step.{step_id}.lammpstrj"
+            lmp.command(f"dump D_atom all custom 1 {dumpfile_atoms} id type x y z")
 
-        # Salva as informações das ligações (quais átomos estão conectados) em outro arquivo
-        dumpfile_bonds = f"dump.bonds.step.{step_id}.txt"
-        lmp.command(f"dump D_bond all local 1 {dumpfile_bonds} c_b[2] c_b[3]")
+            # Salva as informações das ligações (quais átomos estão conectados) em outro arquivo
+            dumpfile_bonds = f"dump.bonds.step.{step_id}.txt"
+            lmp.command(f"dump D_bond all local 1 {dumpfile_bonds} c_b[2] c_b[3]")
 
-        # Executa o dump para gerar os arquivos para o passo atual
-        lmp.command("run 0 post no")
+            # Executa o dump para gerar os arquivos para o passo atual
+            lmp.command("run 0 post no")
 
-        # Limpa os dumps para o próximo ciclo
-        lmp.command("undump D_atom")
-        lmp.command("undump D_bond")
-        # --- Fim do Bloco Modificado ---
-        
+            # Limpa os dumps para o próximo ciclo
+            lmp.command("undump D_atom")
+            lmp.command("undump D_bond")
+            # --- Fim do Bloco de Dump ---
+
+        toc_outer = time.perf_counter()
         print(
             f"Finished strain step {step_id + 1}; cumulative broken = {num_broken_total}",
+            flush=True,
+        )
+        print(
+            f"Total time for step {step_id + 1}: {toc_outer - tic_outer:.6f} seconds",
             flush=True,
         )
 
@@ -191,6 +224,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--strain-inc", type=float, default=0.1, help="Strain increment per step"
     )
     p.add_argument(
+        "--disable-dumps",
+        action="store_true",
+        help="Skip creation of dump files to speed up simulation",
+    )
+    p.add_argument(
+        "--n-threads",
+        type=int,
+        default=1,
+        help="Number of OpenMP threads to pass to LAMMPS (-pk omp N -sf omp)",
+    )
+    p.add_argument(
         "--lmp-args",
         nargs=argparse.REMAINDER,
         default=(),
@@ -208,6 +252,8 @@ def main(argv: List[str] | None = None):  # pragma: no cover
         thresholds_file=ns.thresholds_file,
         total_steps=ns.total_steps,
         strain_inc=ns.strain_inc,
+        enable_dumps=not ns.disable_dumps,
+        n_threads=ns.n_threads,
         lmp_cmdargs=tuple(ns.lmp_args),
     )
 
