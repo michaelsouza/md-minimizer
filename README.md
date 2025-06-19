@@ -46,19 +46,53 @@ The study focused on three main experimental observations:
 
 #### Executando os Experimentos
 
-1) Para rodar os experimentos, precisamos primeiro ativar o ambiente virtual Python do Anaconda.
+1) Baixar a versão estável do código-fonte do LAMMPS
 
 ```bash
-conda activate lammps
+cd codes_cpp
+wget https://github.com/lammps/lammps/archive/refs/tags/stable_29Aug2024_update3.zip
+unzip stable_29Aug2024_update3.zip
 ```
 
-2) Com o ambiente ativado, o primeiro passo seria criar uma rede de partículas utilizando o arquivo `create_network.py`. Este script gera um arquivo de entrada para o LAMMPS, que é o simulador utilizado.
+2) Compile LAMMPS (one-time setup)
+
+Navigate to the LAMMPS source directory and compile it as a shared library. This step only needs to be done once.
+
+```bash
+cd codes_cpp/lammps-stable_29Aug2024_update3/
+cmake -B build -S cmake -D PKG_BPM=yes -D PKG_PYTHON=yes -D BUILD_LIB=on -D BUILD_SHARED_LIBS=on
+cmake --build build -j4
+```
+
+After compilation, the LAMMPS shared library (`liblammps.so`) and header files will be located in the `build/` and `build/includes/lammps/` directories respectively.
+
+3) Compile the `spring_network_cpp` project
+
+Navigate to the `codes_cpp` directory and configure CMake. The `CMakeLists.txt` expects a pre-built LAMMPS library. You may need to set the `LAMMPS_DIR` environment variable or pass it as a CMake argument if LAMMPS is not found automatically.
+
+```bash
+cd codes_cpp
+cmake -B build -S .
+cmake --build build -j4
+```
+
+Alternatively, you can specify the LAMMPS build directory directly:
+
+```bash
+cd codes_cpp
+cmake -B build -S . -D "LAMMPS_DIR=/home/michael/gitrepos/md-minimizer/codes_cpp/lammps-stable_29Aug2024_update3/build"
+cmake --build build -j4
+```
+
+
+
+
+4) Create a particle network using `create_network.py`.
+
+This script generates an input file for LAMMPS.
 
 ```bash
 python lammps/create_network.py --N 96 --L_matrix 6 --output networks
 ```
-Aqui voce passa um tamanho de rede $N$ e o tamanho da matriz $L_{\text{matrix}}$. O local de saida `network_6.txt` conterá a configuração inicial da rede.
 
-3) Para executar a simulação de fato, vamos usar o comando
-
-```bash
+Here, you pass a network size $N$ and matrix size $L_{\text{matrix}}$. The output location `network_6.txt` will contain the initial network configuration.

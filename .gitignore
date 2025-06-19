@@ -42,15 +42,14 @@ lammps/output/*
 # Project files
 .vscode/git_diff.txt
 tree.txt
-lammps/N12_Lmat4*
-log.lammps
-lammps/lammps/N12_Lmat*
-N12_Lmat4_breaking_thresholds.dat
 lammps/dump.*
-.gitignore
 lammps/*.png
-lammps/dump.bonds.step.0.txt
 lammps/simulation_movie.gif
 lammps/log_springs.txt
 outputs/dump.*
 outputs/frame_*
+code/build/*
+stable_29Aug2024_update3.zip
+codes_cpp/lammps-stable_29Aug2024_update3/*
+codes_cpp/build/*
+networks/*

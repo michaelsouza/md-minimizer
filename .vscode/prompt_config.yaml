@@ -9,6 +9,8 @@ files:
   - "lammps/visualize_mesh.py"
   - "lammps/log_lammps.txt"
   - "lammps/log_springs.txt"
+  - "code/main.cpp"
+  - "code/CMakeLists.txt"
   - "tree.txt"
   - "README.md"
 prompts:
