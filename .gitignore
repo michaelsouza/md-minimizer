@@ -53,3 +53,4 @@ stable_29Aug2024_update3.zip
 codes_cpp/lammps-stable_29Aug2024_update3/*
 codes_cpp/build/*
 networks/*
+codes_cpp/log.lammps

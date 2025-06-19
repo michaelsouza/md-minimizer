@@ -11,7 +11,7 @@
 //
 // Compilação (usando CMake):
 // mkdir build && cd build
-// cmake -DLAMMPS_LIB_PATH=/path/to/your/liblammps.so -DLAMMPS_INC_PATH=/path/to/your/lammps/src ..
+// cmake ..
 // make
 
 #include <iostream>
@@ -23,18 +23,13 @@
 #include <cmath>
 #include <chrono>
 #include <mpi.h>
-#include "lammps.h"
-#include "library.h"
+#include "lammps.h"     // Official LAMMPS header
+#include "library.h"    // Provides library function prototypes
 #include "lmptype.h"
 #include "atom.h"
 
-extern "C" {
-void *lammps_open(int, char**, MPI_Comm, void**);
-void lammps_close(void*);
-char *lammps_command(void*, const char*);
-void lammps_commands_list(void*, int, const char**);
-void *lammps_open_no_mpi(int, char**, void**);
-}
+// The manual extern "C" block is removed.
+// All function prototypes are now correctly sourced from library.h
 
 using LAMMPS_NS::tagint;
 
@@ -68,127 +63,53 @@ std::map<int, double> parse_thresholds(const std::string& filename) {
 
 
 int main(int argc, char* argv[]) {
-    // --- Argumentos da Linha de Comando (versão simplificada) ---
-    if (argc < 3) {
-        std::cerr << "Uso: " << argv[0] << " <data_file> <thresholds_file> [total_steps] [strain_inc]" << std::endl;
+    // --- Initialize MPI ---
+    MPI_Init(&argc, &argv);
+    
+    // --- Version Message ---
+    std::cout << "md-minimizer C++ v1.8" << std::endl;
+
+    // --- Argumentos da Linha de Comando ---
+    if (argc < 4) {
+        std::cerr << "Uso: " << argv[0] << " <config_file> <data_file> <thresholds_file> [total_steps] [strain_inc]" << std::endl;
+        MPI_Finalize();
         return 1;
     }
-    std::string data_file = argv[1];
-    std::string thresholds_file = argv[2];
-    int total_steps = (argc > 3) ? std::stoi(argv[3]) : 10;
-    double strain_inc = (argc > 4) ? std::stod(argv[4]) : 0.1;
+    std::string config_file = argv[1];
+    std::string data_file = argv[2];
+    std::string thresholds_file = argv[3];
+    int total_steps = (argc > 4) ? std::stoi(argv[4]) : 10;
+    double strain_inc = (argc > 5) ? std::stod(argv[5]) : 0.1;
     
     // --- Carregar Limiares de Quebra ---
     auto thresholds = parse_thresholds(thresholds_file);
 
     // --- Inicialização do LAMMPS ---
-    // Initialize LAMMPS
-    void *lammps_ptr = nullptr;
-    void *lammps = lammps_open_no_mpi(0, nullptr, &lammps_ptr);
+    void *lammps = lammps_open(0, NULL, MPI_COMM_WORLD, NULL);
     if (!lammps) {
+        MPI_Finalize();
         throw std::runtime_error("Failed to initialize LAMMPS");
     }
 
-    // Os argumentos da linha de comando para o LAMMPS podem ser passados aqui
-    // Ex: "-log", "none", "-screen", "none"
-    char *lmp_argv[] = {(char*)"-log", (char*)"none", (char*)"-screen", (char*)"none"};
-    int lmp_argc = sizeof(lmp_argv)/sizeof(char*);
+    // --- Carregar Configuração Estática do Arquivo ---
+    std::string setup_cmds = "variable data_file string " + data_file + "\n" +
+                             "include " + config_file;
+    lammps_commands_string(lammps, setup_cmds.c_str());
 
-    // Individual LAMMPS commands with error checking
-    char* error_msg;
-    error_msg = lammps_command(lammps, "units lj");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "dimension 2");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "boundary p s p");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "atom_style bond");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "bond_style harmonic");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "pair_style none");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, ("read_data " + data_file).c_str());
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "group bottom_atoms type 2");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "group top_atoms type 3");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "group mobile_atoms type 1");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "fix 1 bottom_atoms setforce 0.0 0.0 0.0");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "thermo 1");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-    error_msg = lammps_command(lammps, "thermo_style custom step pe press pyy");
-    if (error_msg != nullptr) {
-        std::cerr << "LAMMPS error: " << error_msg << std::endl;
-        lammps_close(lammps);
-        return 1;
-    }
-
-    // --- Loop Principal de Deformação ---
+    // --- Loop Principal de Deformação (Lógica Dinâmica) ---
     long long num_broken_total = 0;
     for (int step_id = 0; step_id < total_steps; ++step_id) {
         auto step_start_time = std::chrono::high_resolution_clock::now();
         std::cout << "--- Strain Step " << step_id + 1 << "/" << total_steps << " ---" << std::endl;
 
-        // Aplica o deslocamento (incremento de deformação)
+        // Aplica o deslocamento
         std::string displace_cmd = "displace_atoms top_atoms move 0 " + std::to_string(strain_inc) + " 0";
         lammps_command(lammps, displace_cmd.c_str());
 
-        // Fixa os átomos do topo durante a relaxação/avalanche
+        // Fixa os átomos do topo durante a relaxação
         lammps_command(lammps, "fix 2 top_atoms setforce 0.0 0.0 0.0");
 
-        // --- Loop da Avalanche (Otimizado) ---
+        // --- Loop da Avalanche ---
         while (true) {
             auto minimize_start_time = std::chrono::high_resolution_clock::now();
             lammps_command(lammps, "min_style cg");
@@ -201,54 +122,55 @@ int main(int argc, char* argv[]) {
 
             // --- Acesso Direto aos Dados do LAMMPS ---
             auto access_start_time = std::chrono::high_resolution_clock::now();
-
-            // Ponteiros para as estruturas de dados internas
+            
+            // Per-atom data
             double **x = (double **)lammps_extract_atom(lammps, "x");
-            int *bond_type = (int *)lammps_extract_atom(lammps, "bond_type");
-            int **bond_atom = (int **)lammps_extract_atom(lammps, "bond_atom");
             tagint *tag = (tagint *)lammps_extract_atom(lammps, "tag");
             
-            int nlocal = static_cast<int>(lammps_get_natoms(lammps));
-            int nbonds = *(int *)lammps_extract_global(lammps, "nbond");
+            // Global data
+            int nbonds = *(int *)lammps_extract_global(lammps, "nbonds");
+            int *bond_type = (int *)lammps_extract_global(lammps, "bond_type");
+            tagint **bond_atom = (tagint **)lammps_extract_global(lammps, "bond_atom");
 
-            // Mapeamento de tag global para índice local do átomo
+            if (!x || !tag || !bond_type || !bond_atom || !(&nbonds)) {
+                std::cerr << "Error: Failed to extract required data pointers from LAMMPS." << std::endl;
+                break;
+            }
+            
+            // lammps_get_natoms() returns double, so we cast it.
+            int nlocal = static_cast<int>(lammps_get_natoms(lammps));
+
             std::map<tagint, int> tag_to_local_idx;
             for(int i = 0; i < nlocal; ++i) {
                 tag_to_local_idx[tag[i]] = i;
             }
 
-            // Dimensões da caixa para tratar condições de contorno periódicas
             double boxlo[3], boxhi[3];
             lammps_extract_box(lammps, boxlo, boxhi, NULL, NULL, NULL, NULL, NULL);
             double x_period = boxhi[0] - boxlo[0];
 
             for (int i = 0; i < nbonds; ++i) {
                 int current_type = bond_type[i];
-
-                // Ignora ligações inquebráveis (tipo 1) ou já quebradas (tipo 0)
                 if (current_type <= 1) continue;
-
-                // Verifica se o tipo da ligação tem um limiar de quebra definido
                 if (thresholds.find(current_type) == thresholds.end()) continue;
 
                 double break_len = thresholds.at(current_type);
-
                 tagint atom1_tag = bond_atom[i][0];
                 tagint atom2_tag = bond_atom[i][1];
+                
+                if (tag_to_local_idx.find(atom1_tag) == tag_to_local_idx.end() ||
+                    tag_to_local_idx.find(atom2_tag) == tag_to_local_idx.end()) continue;
 
                 int idx1 = tag_to_local_idx[atom1_tag];
                 int idx2 = tag_to_local_idx[atom2_tag];
                 
                 double dx = x[idx1][0] - x[idx2][0];
                 double dy = x[idx1][1] - x[idx2][1];
-                
-                // Aplica a condição de contorno periódica em x (Minimum Image Convention)
                 dx = dx - x_period * round(dx / x_period);
-
                 double dist_sq = dx * dx + dy * dy;
-                
+
                 if (sqrt(dist_sq) > break_len) {
-                    bond_type[i] = 0;
+                    bond_type[i] = 0; // Set bond type to 0 to "break" it
                     broken_this_iter++;
                 }
             }
@@ -260,11 +182,10 @@ int main(int argc, char* argv[]) {
             std::cout << "   Avalanche iteration broke " << broken_this_iter << " bonds." << std::endl;
 
             if (broken_this_iter == 0) {
-                break; // Fim da avalanche, sistema está estável
+                break;
             }
         }
 
-        // Libera os átomos do topo para o próximo passo de deslocamento
         lammps_command(lammps, "unfix 2");
         
         auto step_end_time = std::chrono::high_resolution_clock::now();
@@ -276,6 +197,7 @@ int main(int argc, char* argv[]) {
 
     // --- Finalização ---
     lammps_close(lammps);
+    MPI_Finalize();
     std::cout << "Simulação finalizada." << std::endl;
 
     return 0;

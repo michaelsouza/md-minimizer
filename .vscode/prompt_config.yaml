@@ -3,14 +3,14 @@ system: |-
   - Conda (Python 3.12)
   - LAMMPS
 files:
-  - "lammps/create_network.py"
+  - "codes_python/create_network.py"
   - "lammps/spring_network.py"
   - "lammps/visualize_simulation.py"
   - "lammps/visualize_mesh.py"
   - "lammps/log_lammps.txt"
   - "lammps/log_springs.txt"
-  - "code/main.cpp"
-  - "code/CMakeLists.txt"
+  - "codes_cpp/main.cpp"
+  - "codes_cpp/CMakeLists.txt"
   - "tree.txt"
   - "README.md"
 prompts:
